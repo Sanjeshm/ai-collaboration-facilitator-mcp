@@ -1,6 +1,6 @@
-# AI-Driven Real-Time Collaboration Facilitator - HTTP Server
+# AI-Driven Real-Time Collaboration Facilitator - MCP Protocol Fixed
 # Built for Puch AI Hackathon 2025
-# Deployed on Render with proper HTTP support
+# Proper MCP HTTP Server Implementation
 
 from fastmcp import FastMCP
 import asyncio
@@ -8,12 +8,13 @@ import json
 import re
 import logging
 import os
-import uvicorn
 from typing import Dict, List, Optional, Any
 from datetime import datetime, timedelta
 from dataclasses import dataclass
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, HTTPException
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+import uvicorn
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -168,17 +169,7 @@ def extract_action_items(
     participants: List[str] = None,
     default_due_date: str = None
 ) -> List[Dict[str, str]]:
-    """
-    Extract and structure action items from meeting transcripts.
-    
-    Args:
-        transcript: Meeting transcript or conversation text
-        participants: List of meeting participants
-        default_due_date: Default due date for items without specific dates
-        
-    Returns:
-        List of structured action items
-    """
+    """Extract and structure action items from meeting transcripts."""
     try:
         if not participants:
             participants = ["Team Member"]
@@ -209,17 +200,7 @@ def suggest_next_steps(
     participants: List[str] = None,
     project_status: str = "ongoing"
 ) -> List[str]:
-    """
-    Generate AI-powered suggestions for next meeting steps.
-    
-    Args:
-        meeting_context: Context about the current meeting/project
-        participants: List of participants
-        project_status: Current project status
-        
-    Returns:
-        List of suggested next steps
-    """
+    """Generate AI-powered suggestions for next meeting steps."""
     try:
         suggestions = []
         context_lower = meeting_context.lower()
@@ -258,17 +239,7 @@ def connect_meeting_platform(
     meeting_id: str,
     auth_token: str = None
 ) -> Dict[str, Any]:
-    """
-    Connect to video conferencing platforms for real-time integration.
-    
-    Args:
-        platform: Platform name ('zoom', 'meet', 'teams')
-        meeting_id: ID of the meeting to connect to
-        auth_token: Authentication token for the platform
-        
-    Returns:
-        Connection status and meeting details
-    """
+    """Connect to video conferencing platforms for real-time integration."""
     try:
         supported_platforms = ['zoom', 'meet', 'teams', 'webex']
         
@@ -302,17 +273,7 @@ def update_project_management(
     project_id: str,
     update_data: Dict[str, Any]
 ) -> Dict[str, Any]:
-    """
-    Update project management tools via webhooks and APIs.
-    
-    Args:
-        platform: Project management platform ('trello', 'asana', 'notion')
-        project_id: ID of the project to update
-        update_data: Data to update (tasks, status, etc.)
-        
-    Returns:
-        Update confirmation and status
-    """
+    """Update project management tools via webhooks and APIs."""
     try:
         supported_platforms = ['trello', 'asana', 'notion', 'jira', 'monday']
         
@@ -342,17 +303,7 @@ def send_team_updates(
     message: str,
     recipients: List[str] = None
 ) -> Dict[str, Any]:
-    """
-    Send real-time updates to team communication channels.
-    
-    Args:
-        channel: Communication channel ('slack', 'teams', 'email')
-        message: Message to send
-        recipients: List of recipient IDs/emails
-        
-    Returns:
-        Delivery confirmation
-    """
+    """Send real-time updates to team communication channels."""
     try:
         if not recipients:
             recipients = ["@team"]
@@ -377,16 +328,7 @@ def analyze_meeting_sentiment(
     transcript: str,
     participants: List[str] = None
 ) -> Dict[str, Any]:
-    """
-    Analyze sentiment and engagement levels in meeting conversations.
-    
-    Args:
-        transcript: Meeting transcript to analyze
-        participants: List of meeting participants
-        
-    Returns:
-        Sentiment analysis results
-    """
+    """Analyze sentiment and engagement levels in meeting conversations."""
     try:
         positive_words = ["great", "excellent", "good", "positive", "agree", "yes", "perfect"]
         negative_words = ["bad", "issue", "problem", "difficult", "disagree", "no", "concern"]
@@ -429,16 +371,7 @@ def get_meeting_insights(
     meeting_id: str = None,
     time_range: str = "today"
 ) -> Dict[str, Any]:
-    """
-    Generate comprehensive insights about meeting effectiveness.
-    
-    Args:
-        meeting_id: Specific meeting ID to analyze
-        time_range: Time range for analysis ('today', 'week', 'month')
-        
-    Returns:
-        Meeting insights and analytics
-    """
+    """Generate comprehensive insights about meeting effectiveness."""
     try:
         insights = {
             "total_meetings_analyzed": len(facilitator.meetings_db),
@@ -463,9 +396,9 @@ def get_meeting_insights(
         logger.error(f"Error generating insights: {e}")
         return {"error": str(e)}
 
-# Create FastAPI app for HTTP endpoints
+# Create FastAPI app for proper MCP protocol support
 app = FastAPI(
-    title="AI Collaboration Facilitator",
+    title="AI Collaboration Facilitator MCP Server",
     description="AI-powered MCP server for remote team collaboration",
     version="1.0.0"
 )
@@ -475,31 +408,246 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD", "PATCH"],
     allow_headers=["*"],
 )
 
+# MCP Protocol endpoints
+@app.options("/{path:path}")
+async def options_handler(path: str):
+    """Handle CORS preflight requests"""
+    return JSONResponse(
+        content={},
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH",
+            "Access-Control-Allow-Headers": "*",
+        }
+    )
+
 @app.get("/")
 async def root():
-    """Root endpoint showing server status"""
+    """Root endpoint for MCP server info"""
     return {
-        "name": "AI-Driven Real-Time Collaboration Facilitator",
-        "status": "active",
-        "version": "1.0.0",
-        "description": "MCP server with 8 AI collaboration tools",
-        "tools": [
-            "summarize_meeting",
-            "extract_action_items", 
-            "suggest_next_steps",
-            "analyze_meeting_sentiment",
-            "connect_meeting_platform",
-            "update_project_management",
-            "send_team_updates",
-            "get_meeting_insights"
-        ],
-        "endpoint": "/mcp",
-        "built_for": "Puch AI Hackathon 2025"
+        "jsonrpc": "2.0",
+        "method": "mcp.info",
+        "result": {
+            "name": "AI-Driven Real-Time Collaboration Facilitator",
+            "version": "1.0.0",
+            "description": "MCP server with 8 AI collaboration tools",
+            "protocol_version": "2024-11-05",
+            "capabilities": {
+                "tools": {},
+                "resources": {},
+                "prompts": {}
+            },
+            "server_info": {
+                "name": "ai-collaboration-facilitator",
+                "version": "1.0.0"
+            }
+        }
     }
+
+@app.post("/")
+async def mcp_handler(request: Request):
+    """Handle MCP protocol requests"""
+    try:
+        body = await request.json()
+        method = body.get("method", "")
+        
+        if method == "initialize":
+            return {
+                "jsonrpc": "2.0",
+                "id": body.get("id"),
+                "result": {
+                    "protocolVersion": "2024-11-05",
+                    "capabilities": {
+                        "tools": {},
+                        "resources": {},
+                        "prompts": {}
+                    },
+                    "serverInfo": {
+                        "name": "ai-collaboration-facilitator",
+                        "version": "1.0.0"
+                    }
+                }
+            }
+        
+        elif method == "tools/list":
+            return {
+                "jsonrpc": "2.0",
+                "id": body.get("id"),
+                "result": {
+                    "tools": [
+                        {
+                            "name": "summarize_meeting",
+                            "description": "Summarize meeting conversations with AI-powered analysis",
+                            "inputSchema": {
+                                "type": "object",
+                                "properties": {
+                                    "meeting_transcript": {"type": "string"},
+                                    "summary_type": {"type": "string", "default": "brief"},
+                                    "participants": {"type": "array", "items": {"type": "string"}}
+                                },
+                                "required": ["meeting_transcript"]
+                            }
+                        },
+                        {
+                            "name": "extract_action_items",
+                            "description": "Extract and structure action items from meeting transcripts",
+                            "inputSchema": {
+                                "type": "object",
+                                "properties": {
+                                    "transcript": {"type": "string"},
+                                    "participants": {"type": "array", "items": {"type": "string"}},
+                                    "default_due_date": {"type": "string"}
+                                },
+                                "required": ["transcript"]
+                            }
+                        },
+                        {
+                            "name": "suggest_next_steps",
+                            "description": "Generate AI-powered suggestions for next meeting steps",
+                            "inputSchema": {
+                                "type": "object",
+                                "properties": {
+                                    "meeting_context": {"type": "string"},
+                                    "participants": {"type": "array", "items": {"type": "string"}},
+                                    "project_status": {"type": "string", "default": "ongoing"}
+                                },
+                                "required": ["meeting_context"]
+                            }
+                        },
+                        {
+                            "name": "analyze_meeting_sentiment",
+                            "description": "Analyze sentiment and engagement levels in meeting conversations",
+                            "inputSchema": {
+                                "type": "object",
+                                "properties": {
+                                    "transcript": {"type": "string"},
+                                    "participants": {"type": "array", "items": {"type": "string"}}
+                                },
+                                "required": ["transcript"]
+                            }
+                        },
+                        {
+                            "name": "connect_meeting_platform",
+                            "description": "Connect to video conferencing platforms for real-time integration",
+                            "inputSchema": {
+                                "type": "object",
+                                "properties": {
+                                    "platform": {"type": "string"},
+                                    "meeting_id": {"type": "string"},
+                                    "auth_token": {"type": "string"}
+                                },
+                                "required": ["platform", "meeting_id"]
+                            }
+                        },
+                        {
+                            "name": "update_project_management",
+                            "description": "Update project management tools via webhooks and APIs",
+                            "inputSchema": {
+                                "type": "object",
+                                "properties": {
+                                    "platform": {"type": "string"},
+                                    "project_id": {"type": "string"},
+                                    "update_data": {"type": "object"}
+                                },
+                                "required": ["platform", "project_id", "update_data"]
+                            }
+                        },
+                        {
+                            "name": "send_team_updates",
+                            "description": "Send real-time updates to team communication channels",
+                            "inputSchema": {
+                                "type": "object",
+                                "properties": {
+                                    "channel": {"type": "string"},
+                                    "message": {"type": "string"},
+                                    "recipients": {"type": "array", "items": {"type": "string"}}
+                                },
+                                "required": ["channel", "message"]
+                            }
+                        },
+                        {
+                            "name": "get_meeting_insights",
+                            "description": "Generate comprehensive insights about meeting effectiveness",
+                            "inputSchema": {
+                                "type": "object",
+                                "properties": {
+                                    "meeting_id": {"type": "string"},
+                                    "time_range": {"type": "string", "default": "today"}
+                                }
+                            }
+                        }
+                    ]
+                }
+            }
+        
+        elif method == "tools/call":
+            tool_name = body.get("params", {}).get("name", "")
+            arguments = body.get("params", {}).get("arguments", {})
+            
+            # Call the appropriate tool
+            if tool_name == "summarize_meeting":
+                result = summarize_meeting(**arguments)
+            elif tool_name == "extract_action_items":
+                result = extract_action_items(**arguments)
+            elif tool_name == "suggest_next_steps":
+                result = suggest_next_steps(**arguments)
+            elif tool_name == "analyze_meeting_sentiment":
+                result = analyze_meeting_sentiment(**arguments)
+            elif tool_name == "connect_meeting_platform":
+                result = connect_meeting_platform(**arguments)
+            elif tool_name == "update_project_management":
+                result = update_project_management(**arguments)
+            elif tool_name == "send_team_updates":
+                result = send_team_updates(**arguments)
+            elif tool_name == "get_meeting_insights":
+                result = get_meeting_insights(**arguments)
+            else:
+                return {
+                    "jsonrpc": "2.0",
+                    "id": body.get("id"),
+                    "error": {
+                        "code": -32601,
+                        "message": f"Method not found: {tool_name}"
+                    }
+                }
+            
+            return {
+                "jsonrpc": "2.0",
+                "id": body.get("id"),
+                "result": {
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": json.dumps(result, indent=2)
+                        }
+                    ]
+                }
+            }
+        
+        else:
+            return {
+                "jsonrpc": "2.0",
+                "id": body.get("id"),
+                "error": {
+                    "code": -32601,
+                    "message": f"Method not found: {method}"
+                }
+            }
+            
+    except Exception as e:
+        logger.error(f"MCP protocol error: {e}")
+        return {
+            "jsonrpc": "2.0",
+            "id": body.get("id", None),
+            "error": {
+                "code": -32603,
+                "message": f"Internal error: {str(e)}"
+            }
+        }
 
 @app.get("/health")
 async def health_check():
@@ -507,66 +655,16 @@ async def health_check():
     return {
         "status": "healthy",
         "timestamp": datetime.now().isoformat(),
-        "uptime": "running"
+        "mcp_protocol": "2024-11-05",
+        "tools_available": 8
     }
-
-@app.get("/tools")
-async def list_tools():
-    """List all available MCP tools"""
-    return {
-        "tools": [
-            {
-                "name": "summarize_meeting",
-                "description": "Summarize meeting conversations with AI-powered analysis"
-            },
-            {
-                "name": "extract_action_items", 
-                "description": "Extract and structure action items from meeting transcripts"
-            },
-            {
-                "name": "suggest_next_steps",
-                "description": "Generate AI-powered suggestions for next meeting steps"
-            },
-            {
-                "name": "analyze_meeting_sentiment",
-                "description": "Analyze sentiment and engagement levels in meeting conversations"
-            },
-            {
-                "name": "connect_meeting_platform",
-                "description": "Connect to video conferencing platforms for real-time integration"
-            },
-            {
-                "name": "update_project_management",
-                "description": "Update project management tools via webhooks and APIs"
-            },
-            {
-                "name": "send_team_updates",
-                "description": "Send real-time updates to team communication channels"
-            },
-            {
-                "name": "get_meeting_insights",
-                "description": "Generate comprehensive insights about meeting effectiveness"
-            }
-        ],
-        "total_tools": 8
-    }
-
-# Try to get MCP HTTP app
-try:
-    # Mount MCP endpoints
-    mcp_app = getattr(mcp, 'sse_app', None) or getattr(mcp, 'http_app', None)
-    if mcp_app:
-        app.mount("/mcp", mcp_app)
-        logger.info("Mounted MCP app at /mcp endpoint")
-except Exception as e:
-    logger.warning(f"Could not mount MCP app: {e}")
 
 if __name__ == "__main__":
     print("🚀 Starting AI-Driven Real-Time Collaboration Facilitator")
+    print("🔧 MCP Protocol Version: 2024-11-05")
     print("📝 Built for Puch AI Hackathon 2025")
-    print("🔧 Deployed on Render with HTTP support")
     
     port = int(os.environ.get("PORT", 8000))
-    print(f"🌐 Server starting on port {port}")
+    print(f"🌐 MCP Server starting on port {port}")
     
     uvicorn.run(app, host="0.0.0.0", port=port, log_level="info")
