@@ -1,6 +1,6 @@
-# AI-Driven Real-Time Collaboration Facilitator MCP Server
+# AI-Driven Real-Time Collaboration Facilitator - HTTP Server
 # Built for Puch AI Hackathon 2025
-# Deployed on Render
+# Deployed on Render with proper HTTP support
 
 from fastmcp import FastMCP
 import asyncio
@@ -8,9 +8,12 @@ import json
 import re
 import logging
 import os
+import uvicorn
 from typing import Dict, List, Optional, Any
 from datetime import datetime, timedelta
 from dataclasses import dataclass
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -43,7 +46,7 @@ class CollaborationFacilitator:
     def __init__(self):
         self.meetings_db = {}
         self.action_items_db = {}
-
+        
     def extract_action_items_from_text(self, text: str, participants: List[str]) -> List[ActionItem]:
         """Extract action items using pattern matching and AI assistance"""
         action_patterns = [
@@ -52,7 +55,7 @@ class CollaborationFacilitator:
             r"(?i)(@\w+)\s+(?:will|should|needs? to)\s+(.+?)(?:\s+by\s+(.+?))?(?:\.|$)",
             r"(?i)todo:\s*(.+?)(?:\s+(?:assigned to|by)\s+(.+?))?(?:\.|$)"
         ]
-
+        
         items = []
         for pattern in action_patterns:
             matches = re.findall(pattern, text, re.MULTILINE)
@@ -61,30 +64,30 @@ class CollaborationFacilitator:
                     task = match[1].strip() if len(match) > 1 else match[0].strip()
                     assignee = match[0].strip() if match[0] in participants else "Unassigned"
                     due_date = match[2].strip() if len(match) > 2 and match[2] else "No due date"
-
+                    
                     items.append(ActionItem(
                         task=task,
                         assignee=assignee,
                         due_date=due_date,
                         priority="medium"
                     ))
-
+        
         return items
-
+    
     def summarize_with_ai(self, text: str, summary_type: str = "brief") -> str:
         """Summarize text using AI (placeholder for actual AI integration)"""
         sentences = text.split('.')
         important_sentences = []
-
+        
         keywords = ["decision", "action", "important", "key", "critical", "next", "follow-up", "deadline"]
-
+        
         for sentence in sentences:
             if any(keyword in sentence.lower() for keyword in keywords):
                 important_sentences.append(sentence.strip())
-
+        
         if not important_sentences:
             important_sentences = sentences[:3]
-
+        
         summary = ". ".join(important_sentences[:5]) + "."
         return summary.strip()
 
@@ -99,32 +102,32 @@ def summarize_meeting(
 ) -> Dict[str, Any]:
     """
     Summarize meeting conversations with AI-powered analysis.
-
+    
     Args:
         meeting_transcript: The full transcript of the meeting
         summary_type: Type of summary ('brief', 'detailed', 'action-focused')
         participants: List of meeting participants
-
+        
     Returns:
         Dictionary containing summary, key points, and action items
     """
     try:
         if not participants:
             participants = ["Team Member"]
-
+            
         # Generate AI summary
         summary = facilitator.summarize_with_ai(meeting_transcript, summary_type)
-
+        
         # Extract key points
         key_points = []
         lines = meeting_transcript.split('\n')
         for line in lines:
             if any(keyword in line.lower() for keyword in ["decision", "agreed", "concluded"]):
                 key_points.append(line.strip())
-
+        
         # Extract action items
         action_items = facilitator.extract_action_items_from_text(meeting_transcript, participants)
-
+        
         meeting_summary = MeetingSummary(
             summary=summary,
             key_points=key_points[:5],
@@ -133,11 +136,11 @@ def summarize_meeting(
             participants=participants,
             timestamp=datetime.now().isoformat()
         )
-
+        
         # Store in database
         meeting_id = f"meeting_{datetime.now().timestamp()}"
         facilitator.meetings_db[meeting_id] = meeting_summary
-
+        
         return {
             "meeting_id": meeting_id,
             "summary": summary,
@@ -154,7 +157,7 @@ def summarize_meeting(
             "participants": participants,
             "timestamp": meeting_summary.timestamp
         }
-
+        
     except Exception as e:
         logger.error(f"Error summarizing meeting: {e}")
         return {"error": str(e)}
@@ -167,24 +170,24 @@ def extract_action_items(
 ) -> List[Dict[str, str]]:
     """
     Extract and structure action items from meeting transcripts.
-
+    
     Args:
         transcript: Meeting transcript or conversation text
         participants: List of meeting participants
         default_due_date: Default due date for items without specific dates
-
+        
     Returns:
         List of structured action items
     """
     try:
         if not participants:
             participants = ["Team Member"]
-
+            
         if not default_due_date:
             default_due_date = (datetime.now() + timedelta(days=7)).strftime("%Y-%m-%d")
-
+        
         action_items = facilitator.extract_action_items_from_text(transcript, participants)
-
+        
         return [
             {
                 "task": item.task,
@@ -195,7 +198,7 @@ def extract_action_items(
             }
             for item in action_items
         ]
-
+        
     except Exception as e:
         logger.error(f"Error extracting action items: {e}")
         return [{"error": str(e)}]
@@ -208,19 +211,19 @@ def suggest_next_steps(
 ) -> List[str]:
     """
     Generate AI-powered suggestions for next meeting steps.
-
+    
     Args:
         meeting_context: Context about the current meeting/project
         participants: List of participants
         project_status: Current project status
-
+        
     Returns:
         List of suggested next steps
     """
     try:
         suggestions = []
         context_lower = meeting_context.lower()
-
+        
         if "decision" in context_lower:
             suggestions.append("Document the decision and communicate to stakeholders")
         if "action" in context_lower or "todo" in context_lower:
@@ -233,7 +236,7 @@ def suggest_next_steps(
             suggestions.append("Update project timeline and notify team of changes")
         if "issue" in context_lower or "problem" in context_lower:
             suggestions.append("Investigate root causes and develop mitigation strategies")
-
+        
         if not suggestions:
             suggestions = [
                 "Share meeting summary with all participants",
@@ -242,9 +245,9 @@ def suggest_next_steps(
                 "Schedule next check-in meeting",
                 "Document lessons learned or key insights"
             ]
-
+        
         return suggestions[:5]
-
+        
     except Exception as e:
         logger.error(f"Error generating next steps: {e}")
         return [f"Error: {str(e)}"]
@@ -257,23 +260,23 @@ def connect_meeting_platform(
 ) -> Dict[str, Any]:
     """
     Connect to video conferencing platforms for real-time integration.
-
+    
     Args:
         platform: Platform name ('zoom', 'meet', 'teams')
         meeting_id: ID of the meeting to connect to
         auth_token: Authentication token for the platform
-
+        
     Returns:
         Connection status and meeting details
     """
     try:
         supported_platforms = ['zoom', 'meet', 'teams', 'webex']
-
+        
         if platform.lower() not in supported_platforms:
             return {
                 "error": f"Platform {platform} not supported. Supported platforms: {supported_platforms}"
             }
-
+        
         connection_info = {
             "platform": platform,
             "meeting_id": meeting_id,
@@ -285,10 +288,10 @@ def connect_meeting_platform(
                 "recording_access"
             ]
         }
-
+        
         logger.info(f"Connected to {platform} meeting {meeting_id}")
         return connection_info
-
+        
     except Exception as e:
         logger.error(f"Error connecting to meeting platform: {e}")
         return {"error": str(e)}
@@ -301,23 +304,23 @@ def update_project_management(
 ) -> Dict[str, Any]:
     """
     Update project management tools via webhooks and APIs.
-
+    
     Args:
         platform: Project management platform ('trello', 'asana', 'notion')
         project_id: ID of the project to update
         update_data: Data to update (tasks, status, etc.)
-
+        
     Returns:
         Update confirmation and status
     """
     try:
         supported_platforms = ['trello', 'asana', 'notion', 'jira', 'monday']
-
+        
         if platform.lower() not in supported_platforms:
             return {
                 "error": f"Platform {platform} not supported. Supported: {supported_platforms}"
             }
-
+        
         update_result = {
             "platform": platform,
             "project_id": project_id,
@@ -325,10 +328,10 @@ def update_project_management(
             "update_time": datetime.now().isoformat(),
             "status": "success"
         }
-
+        
         logger.info(f"Updated {platform} project {project_id}")
         return update_result
-
+        
     except Exception as e:
         logger.error(f"Error updating project management: {e}")
         return {"error": str(e)}
@@ -341,19 +344,19 @@ def send_team_updates(
 ) -> Dict[str, Any]:
     """
     Send real-time updates to team communication channels.
-
+    
     Args:
         channel: Communication channel ('slack', 'teams', 'email')
         message: Message to send
         recipients: List of recipient IDs/emails
-
+        
     Returns:
         Delivery confirmation
     """
     try:
         if not recipients:
             recipients = ["@team"]
-
+            
         send_result = {
             "channel": channel,
             "message_length": len(message),
@@ -361,10 +364,10 @@ def send_team_updates(
             "sent_time": datetime.now().isoformat(),
             "status": "delivered"
         }
-
+        
         logger.info(f"Sent team update via {channel} to {len(recipients)} recipients")
         return send_result
-
+        
     except Exception as e:
         logger.error(f"Error sending team updates: {e}")
         return {"error": str(e)}
@@ -376,33 +379,33 @@ def analyze_meeting_sentiment(
 ) -> Dict[str, Any]:
     """
     Analyze sentiment and engagement levels in meeting conversations.
-
+    
     Args:
         transcript: Meeting transcript to analyze
         participants: List of meeting participants
-
+        
     Returns:
         Sentiment analysis results
     """
     try:
         positive_words = ["great", "excellent", "good", "positive", "agree", "yes", "perfect"]
         negative_words = ["bad", "issue", "problem", "difficult", "disagree", "no", "concern"]
-
+        
         transcript_lower = transcript.lower()
         positive_count = sum(transcript_lower.count(word) for word in positive_words)
         negative_count = sum(transcript_lower.count(word) for word in negative_words)
-
+        
         total_words = len(transcript.split())
-
+        
         if positive_count > negative_count:
             overall_sentiment = "positive"
         elif negative_count > positive_count:
             overall_sentiment = "negative"
         else:
             overall_sentiment = "neutral"
-
+        
         engagement_score = min(100, (positive_count + negative_count) / total_words * 1000)
-
+        
         return {
             "overall_sentiment": overall_sentiment,
             "positive_indicators": positive_count,
@@ -416,7 +419,7 @@ def analyze_meeting_sentiment(
                 else "Monitor concerns raised - may need follow-up"
             ]
         }
-
+        
     except Exception as e:
         logger.error(f"Error analyzing sentiment: {e}")
         return {"error": str(e)}
@@ -428,11 +431,11 @@ def get_meeting_insights(
 ) -> Dict[str, Any]:
     """
     Generate comprehensive insights about meeting effectiveness.
-
+    
     Args:
         meeting_id: Specific meeting ID to analyze
         time_range: Time range for analysis ('today', 'week', 'month')
-
+        
     Returns:
         Meeting insights and analytics
     """
@@ -453,31 +456,117 @@ def get_meeting_insights(
             ],
             "generated_at": datetime.now().isoformat()
         }
-
+        
         return insights
-
+        
     except Exception as e:
         logger.error(f"Error generating insights: {e}")
         return {"error": str(e)}
 
-if __name__ == "__main__":
-    print("Starting AI-Driven Real-Time Collaboration Facilitator MCP Server...")
-    print("Built for Puch AI Hackathon 2025 - Deployed on Render")
-    print("Ready to enhance team collaboration!")
+# Create FastAPI app for HTTP endpoints
+app = FastAPI(
+    title="AI Collaboration Facilitator",
+    description="AI-powered MCP server for remote team collaboration",
+    version="1.0.0"
+)
 
-    # Get port from environment (Render sets this automatically)
-    port = int(os.environ.get("PORT", 8000))
-    print(f"Server starting on port {port}")
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-    # Run the MCP server
-    mcp.run()
+@app.get("/")
+async def root():
+    """Root endpoint showing server status"""
+    return {
+        "name": "AI-Driven Real-Time Collaboration Facilitator",
+        "status": "active",
+        "version": "1.0.0",
+        "description": "MCP server with 8 AI collaboration tools",
+        "tools": [
+            "summarize_meeting",
+            "extract_action_items", 
+            "suggest_next_steps",
+            "analyze_meeting_sentiment",
+            "connect_meeting_platform",
+            "update_project_management",
+            "send_team_updates",
+            "get_meeting_insights"
+        ],
+        "endpoint": "/mcp",
+        "built_for": "Puch AI Hackathon 2025"
+    }
 
-# For HTTP deployment
+@app.get("/health")
+async def health_check():
+    """Health check endpoint"""
+    return {
+        "status": "healthy",
+        "timestamp": datetime.now().isoformat(),
+        "uptime": "running"
+    }
+
+@app.get("/tools")
+async def list_tools():
+    """List all available MCP tools"""
+    return {
+        "tools": [
+            {
+                "name": "summarize_meeting",
+                "description": "Summarize meeting conversations with AI-powered analysis"
+            },
+            {
+                "name": "extract_action_items", 
+                "description": "Extract and structure action items from meeting transcripts"
+            },
+            {
+                "name": "suggest_next_steps",
+                "description": "Generate AI-powered suggestions for next meeting steps"
+            },
+            {
+                "name": "analyze_meeting_sentiment",
+                "description": "Analyze sentiment and engagement levels in meeting conversations"
+            },
+            {
+                "name": "connect_meeting_platform",
+                "description": "Connect to video conferencing platforms for real-time integration"
+            },
+            {
+                "name": "update_project_management",
+                "description": "Update project management tools via webhooks and APIs"
+            },
+            {
+                "name": "send_team_updates",
+                "description": "Send real-time updates to team communication channels"
+            },
+            {
+                "name": "get_meeting_insights",
+                "description": "Generate comprehensive insights about meeting effectiveness"
+            }
+        ],
+        "total_tools": 8
+    }
+
+# Try to get MCP HTTP app
 try:
-    app = mcp.sse_app
-except AttributeError:
-    try:
-        app = mcp.http_app
-    except AttributeError:
-        print("Warning: No HTTP app found, running in STDIO mode")
-        app = None
+    # Mount MCP endpoints
+    mcp_app = getattr(mcp, 'sse_app', None) or getattr(mcp, 'http_app', None)
+    if mcp_app:
+        app.mount("/mcp", mcp_app)
+        logger.info("Mounted MCP app at /mcp endpoint")
+except Exception as e:
+    logger.warning(f"Could not mount MCP app: {e}")
+
+if __name__ == "__main__":
+    print("🚀 Starting AI-Driven Real-Time Collaboration Facilitator")
+    print("📝 Built for Puch AI Hackathon 2025")
+    print("🔧 Deployed on Render with HTTP support")
+    
+    port = int(os.environ.get("PORT", 8000))
+    print(f"🌐 Server starting on port {port}")
+    
+    uvicorn.run(app, host="0.0.0.0", port=port, log_level="info")
